@@ -1,0 +1,56 @@
+# ==== 数据红线：真实数据一律不入库 ====
+# 现场导出的原始数据、分析文件、录屏、截图、私有基线都放在这些目录里
+local/
+data/
+*.mp4
+*.mkv
+*.mov
+
+# ==== Python ====
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# ==== Node（技术栈待定，先占位）====
+node_modules/
+npm-debug.log*
+yarn-error.log*
+.pnpm-store/
+
+# ==== 环境与密钥 ====
+.env
+.env.*
+!.env.example
+*.pem
+credentials.json
+
+# ==== 编辑器 / 系统 ====
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+~$*
+
+# ==== 运行产物 ====
+runs/
+reports/
+*.log
+
+# ==== 本地工具元数据 ====
+.mimosa/
+
+# ==== 图标大档位（按需生成，见 README「图标规范」）====
+# 用 tools/make_icons.py --full 生成：macOS 打包用的 .icns 与 512/1024 PNG
+sharingan/assets/icons/sharingan-512.png
+sharingan/assets/icons/sharingan-1024.png
+sharingan/assets/icons/sharingan.icns
+sharingan/assets/icons/iconset/
