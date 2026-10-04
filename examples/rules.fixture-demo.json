@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "updated_at": "2026-10-05",
+  "base_columns": [
+    "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O"
+  ],
+  "columns": {
+    "B": { "limit": 85, "source": "示例：齿轮箱输入轴轴温上限" },
+    "I": { "limit": 80, "source": "示例：发电机轴承B温度上限" }
+  },
+  "derived": {
+    "T": {
+      "formula": "abs(H-I)",
+      "limit": 20,
+      "source": "示例：发电机轴承温差；真实用例中的口径待澄清#1 裁决"
+    }
+  },
+  "repair": {
+    "B": {
+      "action": "clip",
+      "params": { "to": 84.9 },
+      "mode": "confirm-once",
+      "source": "示例：单点毛刺截断到限值以下"
+    },
+    "I": {
+      "action": "interpolate",
+      "mode": "confirm-once",
+      "source": "示例：单点毛刺按前后点线性插值"
+    },
+    "T": {
+      "action": "reject",
+      "source": "示例：温差列只报警、不自动改数，交人工判断"
+    }
+  },
+  "missing_data": {
+    "备注=此时间点无数据": {
+      "action": "keep_and_flag",
+      "mode": "auto",
+      "source": "示例：无数据行原样保留"
+    }
+  },
+  "writeback": {
+    "range": "A:O",
+    "encoding": "gbk",
+    "preserve_columns": ["备注"],
+    "backup": true,
+    "overwrite": { "mode": "attended" },
+    "description": "示例：只回写 A:O；备注列原样保留；覆盖前备份"
+  },
+  "unmatched": { "mode": "halt" }
+}

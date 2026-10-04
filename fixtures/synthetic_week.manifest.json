@@ -1,0 +1,125 @@
+{
+  "generator": "sharingan.fixtures.generator",
+  "synthetic": true,
+  "警告": "本文件为合成数据，禁止用真实数据替换后提交到公开仓库",
+  "seed": 20260105,
+  "params": {
+    "days": 7,
+    "start": "2026-1-5 0:00:00",
+    "step_minutes": 10,
+    "gap_length": 84,
+    "stale_runs": 3,
+    "spikes": 3,
+    "overflow_limit": 20.0
+  },
+  "columns": [
+    "gearbox_temp_input_shaft1",
+    "gearbox_temp_output_shaft2",
+    "gearbox_oil_temp_gearbox",
+    "generator_winding_temp_u1",
+    "generator_winding_temp_v1",
+    "generator_winding_temp_w1",
+    "generator_bearing_temp_a",
+    "generator_bearing_temp_b",
+    "nacelle_temp",
+    "grid_power",
+    "tower_base_cabinet_temperature",
+    "topbox_cabinet_temperature",
+    "main_bearing_rotor_side_temp",
+    "main_bearing_gearbox_side_temp"
+  ],
+  "row_count": 924,
+  "time_range": [
+    "2026-1-5 0:00:00",
+    "2026-1-11 23:50:00"
+  ],
+  "anomalies": [
+    {
+      "kind": "gap",
+      "rows_removed": 84,
+      "from": "2026-1-8 18:50:00",
+      "to": "2026-1-9 8:40:00"
+    },
+    {
+      "kind": "stale_run",
+      "start_index": 10,
+      "length": 1,
+      "from": "2026-1-5 1:40:00",
+      "to": "2026-1-5 1:40:00",
+      "note": "此时间点无数据",
+      "source_row_index": 9
+    },
+    {
+      "kind": "stale_run",
+      "start_index": 244,
+      "length": 1,
+      "from": "2026-1-6 16:40:00",
+      "to": "2026-1-6 16:40:00",
+      "note": "此时间点无数据",
+      "source_row_index": 243
+    },
+    {
+      "kind": "stale_run",
+      "start_index": 749,
+      "length": 3,
+      "from": "2026-1-10 18:50:00",
+      "to": "2026-1-10 19:10:00",
+      "note": "此时间点无数据",
+      "source_row_index": 748
+    },
+    {
+      "kind": "spike",
+      "index": 163,
+      "time": "2026-1-6 3:10:00",
+      "column": "gearbox_temp_input_shaft1",
+      "before": 43.8,
+      "after": 88.5,
+      "limit": 85,
+      "breaches_limit": true
+    },
+    {
+      "kind": "spike",
+      "index": 737,
+      "time": "2026-1-10 16:50:00",
+      "column": "generator_bearing_temp_b",
+      "before": 54.7,
+      "after": 84.2,
+      "limit": 80,
+      "breaches_limit": true
+    },
+    {
+      "kind": "spike",
+      "index": 344,
+      "time": "2026-1-7 9:20:00",
+      "column": "nacelle_temp",
+      "before": 33.4,
+      "after": 46.5,
+      "limit": 50,
+      "breaches_limit": false
+    },
+    {
+      "kind": "derived_overflow",
+      "start_index": 864,
+      "length": 12,
+      "from": "2026-1-11 14:00:00",
+      "to": "2026-1-11 15:50:00",
+      "derived": "T = |H-I|",
+      "limit": 20.0,
+      "max_abs_diff": 27.9
+    },
+    {
+      "kind": "float_artifact",
+      "index": 593,
+      "time": "2026-1-9 16:50:00",
+      "column": "generator_winding_temp_u1",
+      "text": "48.30001"
+    },
+    {
+      "kind": "float_artifact",
+      "index": 354,
+      "time": "2026-1-7 11:00:00",
+      "column": "nacelle_temp",
+      "text": "34.40001"
+    }
+  ]
+}

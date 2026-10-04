@@ -1,0 +1,13 @@
+# 统一换行策略，避免 Windows 上的 core.autocrlf 改动文件内容
+#
+# 源码统一按 LF 存储与检出（三平台一致）；
+# 数据文件与二进制资源禁止任何换行转换——现场 CSV 的 CRLF 是格式的一部分，
+# 被改写会破坏"字节级往返一致"这条约束。
+
+* text=auto eol=lf
+
+*.csv -text
+*.ico -text
+*.icns -text
+*.png -text
+*.jpg -text
