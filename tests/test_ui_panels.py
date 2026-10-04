@@ -11,6 +11,7 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from sharingan.analysis.summary import column_letter  # noqa: E402
 from sharingan.fixtures import generate  # noqa: E402
 from sharingan.rules import validate  # noqa: E402
 from sharingan.ui import UI_AVAILABLE  # noqa: E402
@@ -25,7 +26,24 @@ from sharingan.ui.rules_panel import (  # noqa: E402
 
 EXAMPLES = Path(__file__).resolve().parent.parent / "examples"
 DEMO_RULES = EXAMPLES / "rules.fixture-demo.json"
-DRAFT_RULES = EXAMPLES / "rules.state-inspection.draft.json"
+
+# 停机场景用的规则：有阈值但没有任何修复规则 → 按 unmatched=halt 停机
+HALTING_RULES = {
+    "version": 1,
+    "base_columns": [column_letter(index) for index in range(15)],  # A..O
+    "columns": {
+        "B": {"limit": 85, "source": "测试：齿轮箱输入轴轴温"},
+        "I": {"limit": 80, "source": "测试：发电机轴承B温度"},
+    },
+    "writeback": {
+        "range": "A:O",
+        "encoding": "gbk",
+        "preserve_columns": ["备注"],
+        "backup": True,
+        "overwrite": {"mode": "attended"},
+    },
+    "unmatched": {"mode": "halt"},
+}
 
 
 class RulesRowsTest(unittest.TestCase):
@@ -161,8 +179,12 @@ class PanelsSmokeTest(unittest.TestCase):
         self.assertIn("2 处修改", panel.summary.text())
 
     def test_changes_panel_disables_apply_when_halted(self):
+        halting_path = self.directory / "halting.json"
+        halting_path.write_text(
+            json.dumps(HALTING_RULES, ensure_ascii=False), encoding="utf-8"
+        )
         window = ui_app.MainWindow()
-        ui_app.populate(window, self.csv_path, DRAFT_RULES)
+        ui_app.populate(window, self.csv_path, halting_path)
         panel = window.changes_panel
         panel.refresh()
         self.assertTrue(panel.plan.halted)
