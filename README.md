@@ -44,6 +44,9 @@ python -m sharingan rules validate examples/rules.state-inspection.draft.json --
 # 查看数据文件概况；带 --rules 时按规则统计超限
 python -m sharingan inspect fixtures/synthetic_week.csv --rules examples/rules.fixture-demo.json
 
+# 解析分析模板（xlsx）：提取阈值/派生公式/统计窗口，并与规则交叉核对
+python -m sharingan template "状态检修模版.xlsx" --rules examples/rules.state-inspection.draft.json
+
 # dry-run：算出该改哪些单元格、改成什么（只读，不写文件）
 python -m sharingan plan fixtures/synthetic_week.csv --rules examples/rules.fixture-demo.json
 
@@ -89,6 +92,7 @@ sharingan/           核心包（纯标准库，无平台耦合）
   formats/           现场文件格式的忠实读写（GBK / CRLF / 不补零时间 / 未命名尾列）
   rules/             rules.json 校验 + 安全公式求值（禁用 eval）
   analysis/          与界面无关的统计与分析、变更计划与写盘（CLI 与 GUI 共用同一份口径）
+  workbook/          模板 xlsx 解析与核对（阈值两个来源、派生公式、统计窗口；可选依赖 openpyxl）
   fixtures/          合成数据生成（异常注入 + 真值清单）
   ui/                跨平台图形界面（PySide6，可选依赖）
   assets/icons/      应用图标（16–256 六档 + Windows .ico；512/1024/.icns 按需生成，见「图标规范」）
@@ -112,6 +116,7 @@ local/               真实数据与私有基线（已 gitignore，不入库）
 - [x] 应用图标：全套尺寸 + 三平台格式，界面已接入
 - [x] dry-run 变更清单与执行写入（先备份、后改数、落变更日志；停机即拒写）
 - [x] 规则编辑页（阈值 / 修复动作 / 参数，保存前自动校验）+ 变更清单复核页
+- [x] 模板 xlsx 自动解析：阈值（表头 / 条件格式两处）、派生公式、统计窗口，与规则交叉核对
 - [ ] 图形界面补全：澄清问答（带证据逐条提问，答案写入规则）
 - [ ] 打包为双击可执行程序（PyInstaller，三平台各自打包）
 - [ ] 分析器：从数据与模板产出歧义清单、可行性分级

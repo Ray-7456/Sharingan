@@ -8,6 +8,8 @@
                        配合 ``--rules`` 可按规则统计超限
 - ``plan``             dry-run：算出"该改哪些单元格、改成什么"，只读不写
 - ``apply``            执行写入：先备份、再改数据、最后落变更日志（需 ``--yes``）
+- ``template``         解析分析模板 xlsx：提取阈值（表头与条件格式两处）、派生公式与
+                       统计窗口，并与 rules.json 交叉核对，冲突一律报出（需 openpyxl）
 - ``ui``               启动跨平台图形界面（需要 PySide6，见 docs/design.md §7）
 
 统计口径全部来自 :mod:`sharingan.analysis`，与图形界面共用同一份逻辑。
@@ -23,7 +25,7 @@ from pathlib import Path
 from . import __version__
 from .analysis import Summary, apply_repairs, build_summary, plan_repairs
 from .fixtures import generate
-from .formats import TimeSeriesFile
+from .formats import TimeSeriesFile, format_number
 from .rules import load_rules
 
 
@@ -211,6 +213,84 @@ def _cmd_apply(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_template(args: argparse.Namespace) -> int:
+    """解析分析模板（xlsx）并与规则交叉核对。"""
+    try:
+        from .workbook import OPENPYXL_AVAILABLE, compare, read_template
+    except ImportError as exc:
+        print(f"无法加载模板解析模块：{exc}")
+        return 2
+    if not OPENPYXL_AVAILABLE:
+        print('需要 openpyxl 才能解析模板：pip install "sharingan[workbook]"')
+        return 2
+
+    profile = read_template(args.path, sheet=args.sheet)
+    rules_data = None
+    if args.rules:
+        rules_data, code = _load_rules_or_report(args.rules, draft=args.draft)
+        if rules_data is None:
+            return code
+    findings = compare(profile, rules_data)
+
+    print(f"模板：{profile.path}")
+    last_row = profile.last_data_row if profile.last_data_row is not None else "（无数据）"
+    print(
+        f"工作表：{profile.sheet}｜表头第 {profile.header_row} 行，数据自第 "
+        f"{profile.first_data_row} 行起，至第 {last_row} 行"
+    )
+    print("  列 | 表头                     | 表头阈值 | 条件格式 | 表达式        | 统计窗口")
+    for column in profile.columns:
+        header_limit = "" if column.header_limit is None else format_number(column.header_limit)
+        cf_text = "/".join(format_number(value) for value in column.cf_limits)
+        window = f"{column.window[0]}:{column.window[1]}" if column.window else ""
+        print(
+            f"  {column.letter:>2s} | {column.header[:22]:22s} | {header_limit:>8s} | "
+            f"{cf_text:>8s} | {(column.expression or ''):13s} | {window}"
+        )
+
+    errors = [f for f in findings if f.level == "error"]
+    warns = [f for f in findings if f.level == "warn"]
+    infos = [f for f in findings if f.level == "info"]
+    print(f"\n发现：{len(errors)} 处冲突、{len(warns)} 处提醒、{len(infos)} 条说明")
+    for finding in findings:
+        print(f"  {finding}")
+
+    if args.json:
+        Path(args.json).write_text(
+            json.dumps(
+                {
+                    "template": profile.path,
+                    "sheet": profile.sheet,
+                    "last_data_row": profile.last_data_row,
+                    "columns": [
+                        {
+                            "letter": column.letter,
+                            "header": column.header,
+                            "tag": column.tag,
+                            "header_limit": column.header_limit,
+                            "cf_limits": list(column.cf_limits),
+                            "expression": column.expression,
+                            "raw_expression": column.raw_expression,
+                            "window": list(column.window) if column.window else None,
+                            "constants": list(column.constants),
+                        }
+                        for column in profile.columns
+                    ],
+                    "findings": [
+                        {"level": f.level, "subject": f.subject, "message": f.message}
+                        for f in findings
+                    ],
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        print(f"解析结果已写入：{args.json}")
+    return 1 if errors else 0
+
+
 def _cmd_ui(args: argparse.Namespace) -> int:
     try:
         from .ui import main as ui_main
@@ -275,6 +355,16 @@ def build_parser() -> argparse.ArgumentParser:
     apply_cmd.add_argument("--log-dir", help="变更日志目录（默认与数据文件同目录）")
     apply_cmd.add_argument("--draft", action="store_true", help="按草稿标准校验规则")
     apply_cmd.set_defaults(func=_cmd_apply)
+
+    template_cmd = subparsers.add_parser(
+        "template", help="解析分析模板（xlsx）：提取阈值/公式/统计窗口并与规则核对"
+    )
+    template_cmd.add_argument("path", help="模板文件（.xlsx）")
+    template_cmd.add_argument("--rules", help="可选：rules.json，逐项比对阈值与公式")
+    template_cmd.add_argument("--sheet", help="工作表名（默认第一个）")
+    template_cmd.add_argument("--json", help="把解析结果与问题清单另存为 JSON")
+    template_cmd.add_argument("--draft", action="store_true", help="按草稿标准校验规则")
+    template_cmd.set_defaults(func=_cmd_template)
 
     ui_cmd = subparsers.add_parser("ui", help="启动图形界面（需要 PySide6）")
     ui_cmd.add_argument("path", nargs="?", help="可选：启动时打开的数据文件")

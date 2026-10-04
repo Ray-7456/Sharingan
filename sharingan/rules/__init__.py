@@ -1,6 +1,6 @@
 """规则文件的校验与安全公式求值。"""
 
-from .formula import FormulaError, check, evaluate, parse, referenced
+from .formula import FormulaError, check, constants, evaluate, normalize, parse, referenced
 from .validator import (
     ENCODINGS,
     MODES,
@@ -19,8 +19,10 @@ __all__ = [
     "Issue",
     "ValidationResult",
     "check",
+    "constants",
     "evaluate",
     "load_rules",
+    "normalize",
     "parse",
     "referenced",
     "validate",

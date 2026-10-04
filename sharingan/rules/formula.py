@@ -205,3 +205,74 @@ def evaluate(text: str, values: Mapping[str, float | None]) -> float | None:
 def check(text: str) -> None:
     """只做语法检查，合法则返回，否则抛 :class:`FormulaError`。"""
     parse(text)
+
+
+# 打印规范化文本时用的优先级（数字越大结合越紧）
+_PRECEDENCE = {"+": 1, "-": 1, "*": 2, "/": 2}
+
+
+def _to_text(node: tuple, parent_precedence: int = 0) -> str:
+    kind = node[0]
+    if kind == "num":
+        return _format_literal(node[1])
+    if kind == "ref":
+        return node[1]
+    if kind == "neg":
+        return f"-{_to_text(node[1], 3)}"
+    if kind == "call":
+        return f"{node[1]}({_to_text(node[2])})"
+    operator = node[1]
+    precedence = _PRECEDENCE[operator]
+    left = _to_text(node[2], precedence)
+    right = _to_text(node[3], precedence + 1)  # 保护 a-(b-c) 这类右结合
+    text = f"{left}{operator}{right}"
+    return f"({text})" if precedence < parent_precedence else text
+
+
+# 打印/比较时抹平浮点表示噪声：Excel 会把 4.1 存成 4.10000000000001，
+# 这种尾数不应被当成"公式不一致"
+_LITERAL_SIGNIFICANT_DIGITS = 12
+
+
+def _clean_literal(value: float) -> float:
+    return float(f"{float(value):.{_LITERAL_SIGNIFICANT_DIGITS}g}")
+
+
+def _format_literal(value: float) -> str:
+    cleaned = _clean_literal(value)
+    if cleaned.is_integer() and abs(cleaned) < 1e16:
+        return str(int(cleaned))
+    return repr(cleaned)
+
+
+def normalize(text: str) -> str:
+    """把公式规范化成规则文件里的写法。
+
+    模板里的 ``=(ABS(O4-J4))-4.1000`` 会变成 ``abs(O-J)-4.1``：列引用去掉行号与
+    ``$``，函数名小写，去掉多余括号，数字按其最短表示。两边都用这个函数处理后
+    再比较，能避免"写法不同但语义相同"的假报警。
+    """
+    return _to_text(parse(text))
+
+
+def constants(text: str) -> tuple[float, ...]:
+    """列出公式里的数字字面量（用于发现硬编码常量，如 ``-4.1``）。
+
+    与 :func:`normalize` 一致，会抹平浮点表示噪声（``4.10000000000001`` → ``4.1``）。
+    """
+    found: list[float] = []
+
+    def walk(node: tuple) -> None:
+        kind = node[0]
+        if kind == "num":
+            found.append(_clean_literal(float(node[1])))
+        elif kind == "neg":
+            walk(node[1])
+        elif kind == "bin":
+            walk(node[2])
+            walk(node[3])
+        elif kind == "call":
+            walk(node[2])
+
+    walk(parse(text))
+    return tuple(found)
