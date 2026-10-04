@@ -36,6 +36,10 @@ Sharingan 要做的事：**把一个人做过一遍的重复性数字工作，�
 ## 快速上手
 
 ```bash
+# 采集：先探测这台机器能不能录，再录一段（正常做一遍要自动化的那件事）
+python -m sharingan record --probe
+python -m sharingan record --seconds 300 --scale 2 --fps 1
+
 # 生成合成测试数据（GBK / CRLF / 不补零时间，含 5 类注入异常与真值清单）
 python -m sharingan fixtures make --out fixtures
 
@@ -70,7 +74,7 @@ python -m sharingan ui fixtures/synthetic_week.csv --rules examples/rules.fixtur
 
 | 阶段 | 状态 |
 |---|---|
-| 1. 采集（录屏、操作事件、辅助功能树） | **未开始**——本项目主线，也是最大的待建部分 |
+| 1. 采集（录屏、操作事件、窗口上下文） | **Windows 已实现**（GDI + 底层钩子，本机实测通过）；macOS / Linux 适配器待实现 |
 | 2. 分析（从录屏与文件推断流程、产出歧义清单） | 部分：文件与模板的自动解析核对已实现；从录屏推断流程未开始 |
 | 3. 澄清（带证据逐条提问，答案写入规则） | 部分：规则契约与编辑界面已实现；问答交互未开始 |
 | 4. 生成（按 spec 产出可复用工具） | 部分：已能产出"变更清单 + 执行写入"这一族工具；通用生成器未开始 |
@@ -108,6 +112,8 @@ sharingan/           核心包（纯标准库，无平台耦合）
   workbook/          模板 xlsx 解析与核对（阈值两个来源、派生公式、统计窗口；可选依赖 openpyxl）
   fixtures/          合成数据生成（异常注入 + 真值清单）
   ui/                跨平台图形界面（PySide6，可选依赖）
+  capture/           采集层：会话格式、抓帧调度、去重（平台无关，见 docs/capture.md）
+  platforms/         平台适配器：Windows 已实现，macOS / Linux 留好接口
   assets/icons/      应用图标（16–256 六档 + Windows .ico；512/1024/.icns 按需生成，见「图标规范」）
   cli.py             命令行入口
 tests/               单元测试（unittest，119 用例，含界面离屏冒烟、修复引擎与图标资源测试）
@@ -130,7 +136,9 @@ local/               真实数据与私有基线（已 gitignore，不入库）
 
 待建（前半段，本项目主线）：
 
-- [ ] **采集层**：录屏、鼠标键盘事件、辅助功能树（Windows / macOS / Linux 适配器）
+- [x] **采集层（Windows）**：屏幕帧、键鼠事件、前台窗口；事件门控 + 去重，会话格式见 docs/capture.md
+- [ ] 采集层补齐：macOS（ScreenCaptureKit / CGEventTap）与 Linux（X11 / Portal）适配器
+- [ ] 采集层进阶：辅助功能树（拿到控件而非像素），提升分析阶段的元素定位能力
 - [ ] **流程理解**：从录屏与相关文件推断"做了什么、为什么这么做"，产出 spec 与歧义清单
 - [ ] **澄清问答**：带证据逐条提问（截图 / 时间点 / 单元格），答案固化成规则
 - [ ] **工具生成器**：按 spec 产出可复用的自动化工具（脚本 / 工作流 / 配置），而不只是回放点击
@@ -162,6 +170,7 @@ local/               真实数据与私有基线（已 gitignore，不入库）
 - 现场导出的原始数据（CSV / Excel）、录屏、截图；
 - 厂站名称、机组编号、设备编号等可定位真实资产的信息；
 - **内部业务流程与用例细节**：分析模板参数、公司内部报表/审批流程描述、真实用例的规则文件——只放本地 `local/cases/`；
+- **采集会话**：屏幕画面与操作记录（`sessions/`、`local/`）——包含屏幕上的一切，绝不入库；
 - 任何个人信息。
 
 真实数据只放在本地 `local/` 目录（已在 .gitignore 中排除）。仓库内测试一律使用 `fixtures/` 下的合成数据。

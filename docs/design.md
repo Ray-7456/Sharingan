@@ -19,6 +19,9 @@
 采集 → 分析 → 澄清 → 生成 → 运行 → （异常）→ 交给 Agent 改规则 → 回归 → 新版本
 ```
 
+采集阶段（第一段）已按"事件门控 + 去重"实现：不录 30fps 视频，只在操作发生时抓帧，
+会话格式见 [capture.md](capture.md)；平台相关代码集中在 `sharingan/platforms/`。
+
 ### 2.1 分析阶段的产出（三件套）
 
 1. **工作流说明（spec）**：输入文件、列映射、步骤、输出、频次。
@@ -167,7 +170,7 @@ Agent 拿到报告后修改 `rules.json` → 出新版本与 diff → 用历史�
 | 层 | 状态 | 规则 |
 |---|---|---|
 | 核心（格式读写、规则、公式、夹具、分析、生成、运行） | 已有实现 | 纯标准库；路径用 `pathlib`；换行符运行时探测；编码自动识别；禁止 `winreg` / `ctypes.windll` / `os.startfile` / 盘符路径 / `shell=True` |
-| 采集层（录屏、键鼠事件、辅助功能树） | 未开始 | 只有这一层允许调用操作系统 API；按平台分文件放在 `sharingan/platforms/`，对上层暴露统一接口（`recorder` / `events` / `ui_tree`） |
+| 采集层（录屏、键鼠事件、前台窗口） | Windows 已实现；macOS / Linux 待实现 | 只有这一层允许调用操作系统 API；按平台分文件放在 `sharingan/platforms/`，通过 `screen_source` / `event_hook` / `active_window` 暴露统一接口；调度与格式在 `sharingan/capture/`，用合成源测试，详见 [capture.md](capture.md) |
 | UI 层 | 已有首个版本（`sharingan/ui/`） | **PySide6（Qt for Python）**：普通用户需要真正的桌面程序（双击即用，没有浏览器、端口、防火墙的顾虑），PySide6 为 LGPL、三平台原生窗口，控件足以承载表格、截图与 diff 复核。它是**可选依赖**（`pip install "sharingan[ui]"`），核心保持零依赖；未安装时 CLI 不受影响。启动时按候选列表挑选中文字体（Windows 微软雅黑 / macOS 苹方 / Linux Noto CJK），找不到时打印安装提示。界面只渲染 `analysis` 层产出的 Summary，**自身不含任何规则判断逻辑** |
 
 护栏：`tests/test_platform_neutrality.py` 扫描核心源码，命中平台专用写法即测试失败，防止耦合回潮。

@@ -8,6 +8,7 @@
                        配合 ``--rules`` 可按规则统计超限
 - ``plan``             dry-run：算出"该改哪些单元格、改成什么"，只读不写
 - ``apply``            执行写入：先备份、再改数据、最后落变更日志（需 ``--yes``）
+- ``record``          采集：抓屏幕帧 + 记录键鼠事件，落成一个会话目录（Windows 已实现）
 - ``template``         解析分析模板 xlsx：提取阈值（表头与条件格式两处）、派生公式与
                        统计窗口，并与 rules.json 交叉核对，冲突一律报出（需 openpyxl）
 - ``ui``               启动跨平台图形界面（需要 PySide6，见 docs/design.md §7）
@@ -20,6 +21,8 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
+from datetime import datetime
 from pathlib import Path
 
 from . import __version__
@@ -291,6 +294,105 @@ def _cmd_template(args: argparse.Namespace) -> int:
     return 1 if errors else 0
 
 
+def _cmd_record(args: argparse.Namespace) -> int:
+    """采集：抓屏幕帧 + 记录键鼠事件，落成一个会话目录。"""
+    from .capture.recorder import Recorder, RecorderOptions
+    from .capture.session import CaptureSession
+    from .platforms import active_window, describe, event_hook, screen_source
+
+    print(f"平台能力：{describe()}")
+
+    region = None
+    if args.region:
+        try:
+            parts = [int(value) for value in args.region.split(",")]
+        except ValueError:
+            parts = []
+        if len(parts) != 4:
+            print("--region 需要四个整数：x,y,宽,高")
+            return 2
+        region = tuple(parts)
+
+    try:
+        source = screen_source(region)
+        hook = event_hook(record_moves=args.moves)
+    except NotImplementedError as exc:
+        print(f"无法开始录制：{exc}")
+        return 2
+
+    width, height = source.size()
+    if args.probe:
+        # 真装一次底层钩子再卸掉：只有这样才敢说"这台机器允许安装"。
+        # 回调只丢弃事件——不落盘、不打印，探测期间不会留下任何输入记录。
+        installed = False
+        try:
+            hook.start(lambda event: None)
+            deadline = time.monotonic() + 0.3
+            while time.monotonic() < deadline:
+                hook.pump(0.05)
+            installed = True
+        except NotImplementedError as exc:
+            print(f"输入钩子不可用：{exc}")
+        except OSError as exc:
+            print(f"输入钩子安装失败：{exc}")
+        finally:
+            hook.stop()
+        close = getattr(source, "close", None)
+        if callable(close):
+            close()
+        print(
+            f"探测结果：屏幕 {width}×{height}；输入钩子"
+            f"{'可安装（已即时卸载）' if installed else '不可用'}；未开始录制。"
+        )
+        return 0 if installed else 1
+
+    out = args.out
+    if not out:
+        out = str(Path("sessions") / datetime.now().strftime("%Y%m%d-%H%M%S"))
+    seconds = args.seconds if args.seconds and args.seconds > 0 else None
+    print(
+        f"屏幕 {width}×{height}（降采样 1/{args.scale}），输出到 {out}\n"
+        f"时长：{'不限（按 Ctrl+C 结束）' if seconds is None else f'{seconds:g} 秒'}，"
+        f"抓帧上限 {args.fps:g} fps（画面无变化会自动跳过）\n"
+        f"按键记录：{'关闭' if args.no_keys else '开启'}；鼠标移动：{'记录' if args.moves else '忽略'}"
+    )
+    print("现在开始，请正常做一遍你想自动化的那件事。")
+
+    session = CaptureSession(
+        out,
+        meta={
+            "tool": f"sharingan {__version__}",
+            "kind": "capture",
+            "platform": describe(),
+            "region": list(region) if region else None,
+        },
+    )
+    options = RecorderOptions(
+        fps=args.fps,
+        seconds=seconds,
+        step=max(1, args.scale),
+        record_keys=not args.no_keys,
+        record_moves=args.moves,
+        change_threshold=args.change_threshold,
+        max_frames=args.max_frames,
+    )
+    recorder = Recorder(source, hook, session, options, window_provider=active_window)
+    try:
+        stats = recorder.run()
+    finally:
+        close = getattr(source, "close", None)
+        if callable(close):
+            close()
+
+    print(f"\n录制完成：{stats.summary()}")
+    print(f"会话目录：{stats.output}")
+    print(
+        "注意：会话里包含屏幕画面与操作记录，属于敏感内容——不要提交到仓库，"
+        "只需要时再喂给分析环节（见 docs/capture.md）。"
+    )
+    return 0
+
+
 def _cmd_ui(args: argparse.Namespace) -> int:
     try:
         from .ui import main as ui_main
@@ -355,6 +457,25 @@ def build_parser() -> argparse.ArgumentParser:
     apply_cmd.add_argument("--log-dir", help="变更日志目录（默认与数据文件同目录）")
     apply_cmd.add_argument("--draft", action="store_true", help="按草稿标准校验规则")
     apply_cmd.set_defaults(func=_cmd_apply)
+
+    record_cmd = subparsers.add_parser(
+        "record", help="采集：录屏 + 键鼠事件，落成一个会话目录"
+    )
+    record_cmd.add_argument("--out", help="会话目录（默认 sessions/<时间戳>）")
+    record_cmd.add_argument(
+        "--seconds", type=float, default=60.0, help="录制时长（秒；0 表示不限，按 Ctrl+C 结束）"
+    )
+    record_cmd.add_argument("--fps", type=float, default=2.0, help="抓帧上限（画面无变化会自动跳过）")
+    record_cmd.add_argument("--scale", type=int, default=1, help="降采样倍数（2 = 长宽各减半）")
+    record_cmd.add_argument("--region", help="只录某个区域：x,y,宽,高")
+    record_cmd.add_argument("--no-keys", action="store_true", help="完全不记录按键")
+    record_cmd.add_argument("--moves", action="store_true", help="记录鼠标移动（事件量大，默认关）")
+    record_cmd.add_argument(
+        "--change-threshold", type=float, default=0.02, help="帧去重阈值：指纹差异比例"
+    )
+    record_cmd.add_argument("--max-frames", type=int, help="最多存多少帧就停")
+    record_cmd.add_argument("--probe", action="store_true", help="只探测平台能力，不录制")
+    record_cmd.set_defaults(func=_cmd_record)
 
     template_cmd = subparsers.add_parser(
         "template", help="解析分析模板（xlsx）：提取阈值/公式/统计窗口并与规则核对"
